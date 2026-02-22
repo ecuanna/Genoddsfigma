@@ -1,5 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@import 'tw-animate-css';
+// tailwind.config.js
+module.exports = {
+  plugins: [
+    require('tw-animate-css'),
+  ],
+}
