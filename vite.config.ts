@@ -1,23 +1,22 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from 'vite'
+import path from 'path'
+import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [
-    // ✅ Automatic runtime (React import zorunlu değil)
+    // The React and Tailwind plugins are both required for Make, even if
+    // Tailwind is not being actively used – do not remove them
     react(),
-
-    // ✅ figma:asset/... -> /figma/asset/...
-    {
-      name: "rewrite-figma-asset-urls",
-      enforce: "pre",
-      transform(code, id) {
-        if (!/\.(ts|tsx|js|jsx|css|scss|sass|less|html)$/.test(id)) return null;
-
-        const replaced = code.replaceAll("figma:asset/", "/figma/asset/");
-        if (replaced === code) return null;
-
-        return { code: replaced, map: null };
-      },
-    },
+    tailwindcss(),
   ],
-});
+  resolve: {
+    alias: {
+      // Alias @ to the src directory
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+
+  // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
+  assetsInclude: ['**/*.svg', '**/*.csv'],
+})
