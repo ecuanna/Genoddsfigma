@@ -1,7 +1,7 @@
 
-  # Bahis Oranı Karşılaştırma Sitesi
+  # GENODDS
 
-  This is a code bundle for Bahis Oranı Karşılaştırma Sitesi. The original project is available at https://www.figma.com/design/Lmxr4VsM4HmwZEpRrhoMWC/Bahis-Oran%C4%B1-Kar%C5%9F%C4%B1la%C5%9Ft%C4%B1rma-Sitesi.
+  This is a code bundle for GENODDS. The original project is available at https://www.figma.com/design/Lmxr4VsM4HmwZEpRrhoMWC/GENODDS.
 
   ## Running the code
 

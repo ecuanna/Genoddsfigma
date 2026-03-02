@@ -22,20 +22,35 @@ interface FilterBarProps {
     removeSportFromFav?: string;
     addLeagueToFav?: string;
     removeLeagueFromFav?: string;
-    // Legacy per-sport translations (fallback for mock data)
-    football?: string;
-    basketball?: string;
-    tennis?: string;
-    volleyball?: string;
+    // Sport display names for localization
+    sportFootball?: string;
+    sportBasketball?: string;
+    sportTennis?: string;
+    sportVolleyball?: string;
+    // League display names for localization
+    leagueSuperLig?: string;
+    leagueLaLiga?: string;
+    leagueNBA?: string;
+    leagueWimbledon?: string;
+    leagueSultanlarLigi?: string;
   };
 }
 
-// Localized sport name mapping (for mock data that uses Turkish keys)
-const SPORT_LOCALE_MAP: Record<string, Record<string, string>> = {
-  Futbol: { tr: "Futbol", en: "Football" },
-  Basketbol: { tr: "Basketbol", en: "Basketball" },
-  Tenis: { tr: "Tenis", en: "Tennis" },
-  Voleybol: { tr: "Voleybol", en: "Volleyball" },
+// Map canonical (Turkish) sport keys → translation key suffix
+const SPORT_TRANSLATION_MAP: Record<string, string> = {
+  Futbol: "sportFootball",
+  Basketbol: "sportBasketball",
+  Tenis: "sportTennis",
+  Voleybol: "sportVolleyball",
+};
+
+// Map canonical league keys → translation key suffix
+const LEAGUE_TRANSLATION_MAP: Record<string, string> = {
+  "Süper Lig": "leagueSuperLig",
+  "La Liga": "leagueLaLiga",
+  NBA: "leagueNBA",
+  Wimbledon: "leagueWimbledon",
+  "Sultanlar Ligi": "leagueSultanlarLigi",
 };
 
 export function FilterBar({
@@ -53,12 +68,30 @@ export function FilterBar({
   onToggleLeagueFavorite,
   translations,
 }: FilterBarProps) {
+  // Localize sport label: check known mapping first, fall back to data label
+  const localizeSport = (sport: SportOption): string => {
+    const translationKey = SPORT_TRANSLATION_MAP[sport.key] as keyof typeof translations | undefined;
+    if (translationKey && translations[translationKey]) {
+      return translations[translationKey] as string;
+    }
+    return sport.label;
+  };
+
+  // Localize league label: check known mapping first, fall back to data label
+  const localizeLeague = (league: LeagueOption): string => {
+    const translationKey = LEAGUE_TRANSLATION_MAP[league.key] as keyof typeof translations | undefined;
+    if (translationKey && translations[translationKey]) {
+      return translations[translationKey] as string;
+    }
+    return league.label;
+  };
+
   // Build sport options: "All" + dynamic list from data
   const sportOptions = [
     { key: "Tümü", label: translations.allSports, isAll: true },
     ...sports.map((s) => ({
       key: s.key,
-      label: s.label,
+      label: localizeSport(s),
       isAll: false,
     })),
   ];
@@ -66,7 +99,7 @@ export function FilterBar({
   // Build league options from data
   const leagueOptions = leagues.map((l) => ({
     key: l.key,
-    label: l.label,
+    label: localizeLeague(l),
   }));
 
   // Button classes — two independent visual layers:
@@ -74,7 +107,6 @@ export function FilterBar({
   //   Favorite   → blue text only, subtle persistent indicator
   const getBtnClass = (isSelected: boolean, isFav: boolean) => {
     if (isSelected) {
-      // Selected always gets brand bg; if also favorited show a soft glow ring
       return [
         "bg-[#022179] text-white shadow-sm",
         isFav
@@ -85,7 +117,6 @@ export function FilterBar({
       ].join(" ");
     }
 
-    // Not selected — bg stays neutral, text turns blue when favorited
     const bg = isDarkMode
       ? "bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#222] hover:border-[#333]"
       : "bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300";

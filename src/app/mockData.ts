@@ -1,4 +1,5 @@
-// Raw mock data shape — the service layer transforms this into full BettingOdds
+// Raw mock data shape — the service layer transforms this into full BettingOdds.
+// When a real API is connected, this file is only used as fallback.
 export interface RawMockOdds {
   id: string;
   company: string;
@@ -10,10 +11,12 @@ export interface RawMockOdds {
   isBest: boolean;
   isSponsored?: boolean;
   timestamp: string;
+  /** Override event status for testing (default: "upcoming") */
+  eventStatus?: "upcoming" | "live" | "finished";
 }
 
 export const mockBettingData: RawMockOdds[] = [
-  // Fenerbahçe - Galatasaray
+  // ─── Fenerbahçe - Galatasaray ────────────────────────────────
   {
     id: "1",
     company: "Bets10",
@@ -24,6 +27,7 @@ export const mockBettingData: RawMockOdds[] = [
     odds: { home: 2.45, draw: 3.20, away: 2.85 },
     isBest: true,
     timestamp: "5 dakika önce",
+    eventStatus: "live",
   },
   {
     id: "2",
@@ -36,6 +40,7 @@ export const mockBettingData: RawMockOdds[] = [
     isBest: false,
     isSponsored: true,
     timestamp: "8 dakika önce",
+    eventStatus: "live",
   },
   {
     id: "3",
@@ -47,6 +52,7 @@ export const mockBettingData: RawMockOdds[] = [
     odds: { home: 2.30, draw: 3.10, away: 2.90 },
     isBest: false,
     timestamp: "10 dakika önce",
+    eventStatus: "live",
   },
   {
     id: "4",
@@ -58,9 +64,10 @@ export const mockBettingData: RawMockOdds[] = [
     odds: { home: 2.25, draw: 3.05, away: 2.95 },
     isBest: false,
     timestamp: "12 dakika önce",
+    eventStatus: "live",
   },
 
-  // Beşiktaş - Trabzonspor
+  // ─── Beşiktaş - Trabzonspor ──────────────────────────────────
   {
     id: "5",
     company: "Bets10",
@@ -96,7 +103,7 @@ export const mockBettingData: RawMockOdds[] = [
     timestamp: "7 dakika önce",
   },
 
-  // Lakers - Warriors (Basketbol)
+  // ─── Lakers - Warriors (Basketbol) ──────────────────────────
   {
     id: "8",
     company: "Misli",
@@ -132,7 +139,7 @@ export const mockBettingData: RawMockOdds[] = [
     timestamp: "20 dakika önce",
   },
 
-  // Real Madrid - Barcelona
+  // ─── Real Madrid - Barcelona ─────────────────────────────────
   {
     id: "11",
     company: "Bilyoner",
@@ -168,7 +175,7 @@ export const mockBettingData: RawMockOdds[] = [
     timestamp: "1 saat önce",
   },
 
-  // Djokovic - Alcaraz (Tenis)
+  // ─── Djokovic - Alcaraz (Tenis) ──────────────────────────────
   {
     id: "14",
     company: "Nesine",
@@ -193,7 +200,7 @@ export const mockBettingData: RawMockOdds[] = [
     timestamp: "2 saat önce",
   },
 
-  // VakıfBank - Eczacıbaşı (Voleybol)
+  // ─── VakıfBank - Eczacıbaşı (Voleybol) ──────────────────────
   {
     id: "16",
     company: "Bilyoner",

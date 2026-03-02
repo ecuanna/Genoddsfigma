@@ -9,18 +9,20 @@ import type {
 import { mockBettingData } from "../mockData";
 
 // ─── Configuration ────────────────────────────────────────────
-// Replace with your actual API base URL and key.
-// In production, these should come from environment variables.
+// Set these in your .env file. When VITE_ODDS_API_URL is empty,
+// the app automatically falls back to mock data.
 const API_CONFIG = {
   baseUrl: import.meta.env.VITE_ODDS_API_URL || "",
   apiKey: import.meta.env.VITE_ODDS_API_KEY || "",
-  // Polling interval in ms (default 30s for live, 120s for upcoming)
   pollIntervalLive: Number(import.meta.env.VITE_POLL_INTERVAL_LIVE) || 30_000,
   pollIntervalDefault: Number(import.meta.env.VITE_POLL_INTERVAL) || 120_000,
 };
 
 // ─── API Fetcher ──────────────────────────────────────────────
-async function apiFetch<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
+async function apiFetch<T>(
+  endpoint: string,
+  params?: Record<string, string>
+): Promise<T> {
   const url = new URL(endpoint, API_CONFIG.baseUrl);
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -34,7 +36,10 @@ async function apiFetch<T>(endpoint: string, params?: Record<string, string>): P
   });
 
   if (!res.ok) {
-    throw new ApiError(res.status, `API error: ${res.status} ${res.statusText}`);
+    throw new ApiError(
+      res.status,
+      `API error: ${res.status} ${res.statusText}`
+    );
   }
 
   return res.json();
@@ -48,14 +53,20 @@ export class ApiError extends Error {
 }
 
 // ─── Transformer: API → Internal Types ────────────────────────
-function findOutcome(outcomes: ApiOddsEntry["outcomes"], label: string): number {
+function findOutcome(
+  outcomes: ApiOddsEntry["outcomes"],
+  label: string
+): number {
   return outcomes.find((o) => o.label === label)?.value ?? 0;
 }
 
+/**
+ * Picks the bookmaker with the highest combined odds as "best"
+ * within each match/event group.
+ */
 function computeBestOdds(entries: BettingOdds[]): BettingOdds[] {
   if (entries.length === 0) return entries;
 
-  // Best = highest average of home + away (+ draw if applicable)
   let bestId = entries[0].id;
   let bestScore = -Infinity;
 
@@ -76,15 +87,14 @@ function computeBestOdds(entries: BettingOdds[]): BettingOdds[] {
   }));
 }
 
-function transformApiResponse(data: ApiOddsResponse): {
-  odds: BettingOdds[];
-  sports: SportOption[];
-  leagues: LeagueOption[];
-} {
+/**
+ * Transforms the raw API response into internal display types.
+ * This is where you adapt to your specific API's schema.
+ */
+function transformApiResponse(data: ApiOddsResponse): OddsDataResult {
   const eventMap = new Map<string, ApiEvent>();
   data.events.forEach((e) => eventMap.set(e.id, e));
 
-  // Transform odds entries
   const rawOdds: BettingOdds[] = data.odds
     .filter((o) => eventMap.has(o.eventId))
     .map((o) => {
@@ -105,7 +115,7 @@ function transformApiResponse(data: ApiOddsResponse): {
           draw: findOutcome(o.outcomes, "draw"),
           away: findOutcome(o.outcomes, "away"),
         },
-        isBest: false, // will be computed below
+        isBest: false,
         isSponsored: o.bookmaker.isSponsored,
         updatedAt: o.updatedAt,
         eventStatus: event.status,
@@ -113,17 +123,15 @@ function transformApiResponse(data: ApiOddsResponse): {
       };
     });
 
-  // Group by event, compute best per group, flatten
+  // Group by event → compute best per group → flatten
   const grouped = new Map<string, BettingOdds[]>();
   rawOdds.forEach((o) => {
     const list = grouped.get(o.eventId) || [];
     list.push(o);
     grouped.set(o.eventId, list);
   });
-
   const odds = Array.from(grouped.values()).flatMap(computeBestOdds);
 
-  // Sports & Leagues
   const sports: SportOption[] = data.sports.map((s) => ({
     id: s.id,
     key: s.name,
@@ -143,33 +151,33 @@ function transformApiResponse(data: ApiOddsResponse): {
 }
 
 // ─── Mock Data Transformer ────────────────────────────────────
-// Transforms existing mockData into the new internal format,
-// so the app works identically without a live API.
-function transformMockData(): {
-  odds: BettingOdds[];
-  sports: SportOption[];
-  leagues: LeagueOption[];
-} {
+function transformMockData(): OddsDataResult {
+  const now = new Date();
+
   const raw: BettingOdds[] = mockBettingData.map((m) => ({
     id: m.id,
     eventId: m.match.replace(/\s/g, "_").toLowerCase(),
     company: m.company,
     companyLogo: m.companyLogo,
-    affiliateUrl: "", // Mock — no real URL
+    affiliateUrl: "",
     match: m.match,
     league: m.league,
     leagueId: m.league.replace(/\s/g, "_").toLowerCase(),
     sport: m.sport,
     sportId: m.sport.toLowerCase(),
     odds: { ...m.odds },
-    isBest: false,
+    isBest: false, // computed below
     isSponsored: m.isSponsored ?? false,
-    updatedAt: new Date().toISOString(),
-    eventStatus: "upcoming" as const,
-    eventStartTime: new Date(Date.now() + 3_600_000).toISOString(),
+    updatedAt: new Date(
+      now.getTime() - Math.floor(Math.random() * 600_000)
+    ).toISOString(),
+    eventStatus: m.eventStatus ?? ("upcoming" as const),
+    eventStartTime: new Date(
+      now.getTime() + 3_600_000
+    ).toISOString(),
   }));
 
-  // Group & compute best
+  // Group → compute best → flatten
   const grouped = new Map<string, BettingOdds[]>();
   raw.forEach((o) => {
     const list = grouped.get(o.eventId) || [];
@@ -178,7 +186,7 @@ function transformMockData(): {
   });
   const odds = Array.from(grouped.values()).flatMap(computeBestOdds);
 
-  // Extract unique sports & leagues
+  // Extract unique sports & leagues dynamically
   const sportSet = new Map<string, SportOption>();
   const leagueSet = new Map<string, LeagueOption>();
 
@@ -219,13 +227,12 @@ export interface OddsDataResult {
 
 /**
  * Fetches odds data from the API.
- * Falls back to mock data if no API URL is configured.
+ * Falls back to mock data if VITE_ODDS_API_URL is not set.
  */
 export async function fetchOddsData(params?: {
   sportId?: string;
   leagueId?: string;
 }): Promise<OddsDataResult> {
-  // If no API URL configured, use mock data
   if (!API_CONFIG.baseUrl) {
     // Simulate network delay for realistic UX testing
     await new Promise((r) => setTimeout(r, 600));
@@ -241,10 +248,13 @@ export async function fetchOddsData(params?: {
 }
 
 /**
- * Returns the appropriate polling interval based on whether
- * any live events exist in the current dataset.
+ * Returns the appropriate polling interval:
+ * - 30s if any live events exist (or VITE_POLL_INTERVAL_LIVE)
+ * - 120s otherwise (or VITE_POLL_INTERVAL)
  */
 export function getPollingInterval(odds: BettingOdds[]): number {
   const hasLive = odds.some((o) => o.eventStatus === "live");
-  return hasLive ? API_CONFIG.pollIntervalLive : API_CONFIG.pollIntervalDefault;
+  return hasLive
+    ? API_CONFIG.pollIntervalLive
+    : API_CONFIG.pollIntervalDefault;
 }

@@ -14,9 +14,9 @@ export interface UseOddsDataReturn {
   sports: SportOption[];
   /** Available leagues from the data source */
   leagues: LeagueOption[];
-  /** True during initial load or when refetching */
+  /** True during initial load or background refetch */
   isLoading: boolean;
-  /** True only during initial load (no data yet) */
+  /** True only during the very first load (no data yet) */
   isInitialLoading: boolean;
   /** Error message if the last fetch failed */
   error: string | null;
@@ -56,7 +56,7 @@ export function useOddsData(): UseOddsDataReturn {
       setIsMockData(!import.meta.env.VITE_ODDS_API_URL);
       setLastUpdated(new Date());
 
-      // Schedule next poll
+      // Schedule next poll based on live/upcoming events
       const interval = getPollingInterval(result.odds);
       pollingRef.current = setTimeout(() => fetchData(false), interval);
     } catch (err) {
@@ -64,10 +64,10 @@ export function useOddsData(): UseOddsDataReturn {
 
       const message =
         err instanceof ApiError
-          ? `API Hatası: ${err.status}`
+          ? `API ${err.status}: ${err.message}`
           : err instanceof Error
           ? err.message
-          : "Bilinmeyen hata";
+          : "Unknown error";
 
       setError(message);
 
@@ -76,7 +76,7 @@ export function useOddsData(): UseOddsDataReturn {
     } finally {
       if (mountedRef.current) {
         setIsLoading(false);
-        setIsInitialLoading(false);
+        if (isInitial) setIsInitialLoading(false);
       }
     }
   }, []);
@@ -84,6 +84,7 @@ export function useOddsData(): UseOddsDataReturn {
   const refetch = useCallback(async () => {
     if (pollingRef.current) clearTimeout(pollingRef.current);
     setIsLoading(true);
+    setError(null);
     await fetchData(false);
   }, [fetchData]);
 
