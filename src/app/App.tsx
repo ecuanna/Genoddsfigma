@@ -18,7 +18,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { useOddsData } from "./hooks/useOddsData";
 import type { BettingOdds } from "./types";
 import { Language, useTranslation } from "./translations";
-import logo from "figma:asset/7359bb17b46466e7c2e65f3010eb199c2e735ad8.png";
+import { Logo } from "./components/Logo";
 
 interface User {
   name: string;
@@ -314,7 +314,7 @@ export default function App() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="relative flex-shrink-0">
-                <img src={logo} alt="Logo" className="h-10" />
+                <Logo className="h-10" />
               </div>
             </div>
             <div className="flex items-center gap-3">
