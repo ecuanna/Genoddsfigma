@@ -8,24 +8,17 @@ import {
 import type { BettingOdds, SportOption, LeagueOption } from "../types";
 
 export interface UseOddsDataReturn {
-  /** All odds entries (unfiltered, from API/mock) */
   odds: BettingOdds[];
-  /** Available sports from the data source */
   sports: SportOption[];
-  /** Available leagues from the data source */
   leagues: LeagueOption[];
-  /** True during initial load or background refetch */
   isLoading: boolean;
-  /** True only during the very first load (no data yet) */
   isInitialLoading: boolean;
-  /** Error message if the last fetch failed */
   error: string | null;
-  /** Whether we're using mock/fallback data */
+  /** Always false — we only use the real API now */
   isMockData: boolean;
-  /** Last successful update timestamp */
   lastUpdated: Date | null;
-  /** Manually trigger a refetch */
   refetch: () => Promise<void>;
+  eventCount: number;
 }
 
 export function useOddsData(): UseOddsDataReturn {
@@ -35,17 +28,17 @@ export function useOddsData(): UseOddsDataReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isMockData, setIsMockData] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [eventCount, setEventCount] = useState(0);
 
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
-  const fetchData = useCallback(async (isInitial = false) => {
+  const fetchData = useCallback(async (isInitial = false, force = false) => {
     if (isInitial) setIsLoading(true);
 
     try {
-      const result: OddsDataResult = await fetchOddsData();
+      const result: OddsDataResult = await fetchOddsData({ force });
 
       if (!mountedRef.current) return;
 
@@ -53,12 +46,14 @@ export function useOddsData(): UseOddsDataReturn {
       setSports(result.sports);
       setLeagues(result.leagues);
       setError(null);
-      setIsMockData(!import.meta.env.VITE_ODDS_API_URL);
       setLastUpdated(new Date());
 
-      // Schedule next poll based on live/upcoming events
+      const uniqueEvents = new Set(result.odds.map((o) => o.eventId));
+      setEventCount(uniqueEvents.size);
+
+      // Schedule next poll
       const interval = getPollingInterval(result.odds);
-      pollingRef.current = setTimeout(() => fetchData(false), interval);
+      pollingRef.current = setTimeout(() => fetchData(false, false), interval);
     } catch (err) {
       if (!mountedRef.current) return;
 
@@ -67,12 +62,11 @@ export function useOddsData(): UseOddsDataReturn {
           ? `API ${err.status}: ${err.message}`
           : err instanceof Error
           ? err.message
-          : "Unknown error";
+          : "Bilinmeyen hata";
 
       setError(message);
-
-      // On error, retry after 10 seconds
-      pollingRef.current = setTimeout(() => fetchData(false), 10_000);
+      // Retry after 20 seconds on error
+      pollingRef.current = setTimeout(() => fetchData(false, false), 20_000);
     } finally {
       if (mountedRef.current) {
         setIsLoading(false);
@@ -85,12 +79,12 @@ export function useOddsData(): UseOddsDataReturn {
     if (pollingRef.current) clearTimeout(pollingRef.current);
     setIsLoading(true);
     setError(null);
-    await fetchData(false);
+    await fetchData(false, true);
   }, [fetchData]);
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchData(true);
+    fetchData(true, false);
 
     return () => {
       mountedRef.current = false;
@@ -105,8 +99,9 @@ export function useOddsData(): UseOddsDataReturn {
     isLoading,
     isInitialLoading,
     error,
-    isMockData,
+    isMockData: false, // Always using real API
     lastUpdated,
     refetch,
+    eventCount,
   };
 }

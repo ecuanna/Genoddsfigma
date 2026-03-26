@@ -104,8 +104,9 @@ export function OddsCard({
     : "text-gray-200 hover:text-gray-400";
 
   const handleCTAClick = () => {
-    if (odds.affiliateUrl) {
-      window.open(odds.affiliateUrl, "_blank", "noopener,noreferrer");
+    const url = odds.affiliateUrl;
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -349,7 +350,7 @@ export function OddsCard({
           }`}
         >
           {translations.inspect}
-          {odds.affiliateUrl && <ExternalLink className="w-3.5 h-3.5" />}
+          <ExternalLink className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>

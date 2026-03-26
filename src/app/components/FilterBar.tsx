@@ -5,9 +5,7 @@ interface FilterBarProps {
   onSportChange: (sport: string) => void;
   selectedLeague: string;
   onLeagueChange: (league: string) => void;
-  /** Dynamic sports from API/data source */
   sports: SportOption[];
-  /** Dynamic leagues from API/data source (filtered by sport) */
   leagues: LeagueOption[];
   isDarkMode?: boolean;
   isLoggedIn?: boolean;
@@ -22,12 +20,10 @@ interface FilterBarProps {
     removeSportFromFav?: string;
     addLeagueToFav?: string;
     removeLeagueFromFav?: string;
-    // Sport display names for localization
     sportFootball?: string;
     sportBasketball?: string;
     sportTennis?: string;
     sportVolleyball?: string;
-    // League display names for localization
     leagueSuperLig?: string;
     leagueLaLiga?: string;
     leagueNBA?: string;
@@ -36,7 +32,6 @@ interface FilterBarProps {
   };
 }
 
-// Map canonical (Turkish) sport keys → translation key suffix
 const SPORT_TRANSLATION_MAP: Record<string, string> = {
   Futbol: "sportFootball",
   Basketbol: "sportBasketball",
@@ -44,7 +39,6 @@ const SPORT_TRANSLATION_MAP: Record<string, string> = {
   Voleybol: "sportVolleyball",
 };
 
-// Map canonical league keys → translation key suffix
 const LEAGUE_TRANSLATION_MAP: Record<string, string> = {
   "Süper Lig": "leagueSuperLig",
   "La Liga": "leagueLaLiga",
@@ -68,7 +62,6 @@ export function FilterBar({
   onToggleLeagueFavorite,
   translations,
 }: FilterBarProps) {
-  // Localize sport label: check known mapping first, fall back to data label
   const localizeSport = (sport: SportOption): string => {
     const translationKey = SPORT_TRANSLATION_MAP[sport.key] as keyof typeof translations | undefined;
     if (translationKey && translations[translationKey]) {
@@ -77,7 +70,6 @@ export function FilterBar({
     return sport.label;
   };
 
-  // Localize league label: check known mapping first, fall back to data label
   const localizeLeague = (league: LeagueOption): string => {
     const translationKey = LEAGUE_TRANSLATION_MAP[league.key] as keyof typeof translations | undefined;
     if (translationKey && translations[translationKey]) {
@@ -86,7 +78,6 @@ export function FilterBar({
     return league.label;
   };
 
-  // Build sport options: "All" + dynamic list from data
   const sportOptions = [
     { key: "Tümü", label: translations.allSports, isAll: true },
     ...sports.map((s) => ({
@@ -96,15 +87,11 @@ export function FilterBar({
     })),
   ];
 
-  // Build league options from data
   const leagueOptions = leagues.map((l) => ({
     key: l.key,
     label: localizeLeague(l),
   }));
 
-  // Button classes — two independent visual layers:
-  //   Selection  → #022179 bg (header color), strong active state
-  //   Favorite   → blue text only, subtle persistent indicator
   const getBtnClass = (isSelected: boolean, isFav: boolean) => {
     if (isSelected) {
       return [
@@ -156,7 +143,7 @@ export function FilterBar({
                 onDoubleClick={() => {
                   if (canFav) onToggleSportFavorite(sport.key);
                 }}
-                className={`relative flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-sm font-medium transition-all select-none ${getBtnClass(
+                className={`h-9 px-3.5 rounded-lg text-sm font-medium transition-all select-none ${getBtnClass(
                   isSelected,
                   isFav
                 )}`}
@@ -176,9 +163,7 @@ export function FilterBar({
       </div>
 
       {/* Divider */}
-      <div
-        className={`h-px ${isDarkMode ? "bg-[#1e1e1e]" : "bg-gray-100"}`}
-      />
+      <div className={`h-px ${isDarkMode ? "bg-[#1e1e1e]" : "bg-gray-100"}`} />
 
       {/* League Filter */}
       <div>
@@ -212,7 +197,7 @@ export function FilterBar({
                 onDoubleClick={() => {
                   if (canFav) onToggleLeagueFavorite(league.key);
                 }}
-                className={`relative flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-sm font-medium transition-all select-none ${getBtnClass(
+                className={`h-9 px-3.5 rounded-lg text-sm font-medium transition-all select-none ${getBtnClass(
                   isSelected,
                   isFav
                 )}`}
