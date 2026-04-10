@@ -10,20 +10,24 @@ import {
   LogIn,
   ChevronDown,
   ChevronUp,
+  Building2,
 } from "lucide-react";
+import { BookmakerSearch } from "./BookmakerSearch";
 
 export interface CategorizedFavorites {
   teams: string[];
   matches: string[];
   leagues: string[];
   sports: string[];
+  bookmakers: string[];
 }
 
-type FavTab = "teams" | "matches" | "leagues" | "sports";
+type FavTab = "teams" | "matches" | "leagues" | "sports" | "bookmakers";
 
 interface FavoritesSectionProps {
   favorites: CategorizedFavorites;
   onRemove: (category: FavTab, item: string) => void;
+  onAddBookmaker: (name: string) => void;
   isDarkMode: boolean;
   isLoggedIn: boolean;
   onLoginClick?: () => void;
@@ -31,20 +35,24 @@ interface FavoritesSectionProps {
   onQuickFilter?: (category: FavTab, item: string) => void;
   /** Which items are currently active as filters (to highlight them) */
   activeFilterItems?: string[];
+  language: "tr" | "en";
   translations: {
     favorites: string;
     favTeams: string;
     favMatches: string;
     favLeagues: string;
     favSports: string;
+    favBookmakers: string;
     noFavTeams: string;
     noFavMatches: string;
     noFavLeagues: string;
     noFavSports: string;
+    noFavBookmakers: string;
     noFavTeamsDesc: string;
     noFavMatchesDesc: string;
     noFavLeaguesDesc: string;
     noFavSportsDesc: string;
+    noFavBookmarkersDesc: string;
     remove: string;
     favLoginTitle: string;
     favLoginDesc: string;
@@ -53,6 +61,12 @@ interface FavoritesSectionProps {
     favFeature2: string;
     favFeature3: string;
     noFavoritesDescription: string;
+    searchBookmakerPlaceholder: string;
+    noBookmakersFound: string;
+    bookmakerFavorites: string;
+    allRegions: string;
+    visitSite: string;
+    added: string;
   };
 }
 
@@ -67,24 +81,26 @@ const ghostChips = [
 export function FavoritesSection({
   favorites,
   onRemove,
+  onAddBookmaker,
   isDarkMode,
   isLoggedIn,
   onLoginClick,
   onQuickFilter,
   activeFilterItems = [],
+  language,
   translations,
 }: FavoritesSectionProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Auto-select first tab with items
-  const tabOrder: FavTab[] = ["teams", "matches", "leagues", "sports"];
+  const tabOrder: FavTab[] = ["teams", "matches", "leagues", "sports", "bookmakers"];
   const firstWithItems =
     tabOrder.find((tab) => favorites[tab].length > 0) || "teams";
   const [activeTab, setActiveTab] = useState<FavTab>(firstWithItems);
 
   // Update active tab when favorites change (if current tab becomes empty)
   useEffect(() => {
-    if (favorites[activeTab].length === 0) {
+    if (favorites[activeTab].length === 0 && activeTab !== "bookmakers") {
       const nextTab = tabOrder.find((tab) => favorites[tab].length > 0);
       if (nextTab) setActiveTab(nextTab);
     }
@@ -130,13 +146,22 @@ export function FavoritesSection({
       emptyIcon: <Dumbbell className="w-6 h-6" />,
       emptyDesc: translations.noFavSportsDesc,
     },
+    {
+      key: "bookmakers",
+      label: translations.favBookmakers,
+      count: favorites.bookmakers.length,
+      icon: <Building2 className="w-3.5 h-3.5" />,
+      emptyIcon: <Building2 className="w-6 h-6" />,
+      emptyDesc: translations.noFavBookmarkersDesc,
+    },
   ];
 
   const totalCount =
     favorites.teams.length +
     favorites.matches.length +
     favorites.leagues.length +
-    favorites.sports.length;
+    favorites.sports.length +
+    favorites.bookmakers.length;
 
   // ─── Anonymous ─────────────────────────────────────────────
   if (!isLoggedIn) {
@@ -173,18 +198,14 @@ export function FavoritesSection({
           {/* Blurred ghost chips */}
           <div className="px-4 pt-3 pb-1">
             <div className="flex gap-2 overflow-hidden">
-              {ghostChips.map((chip, i) => (
+              {[{ w: "w-24" }, { w: "w-32" }, { w: "w-20" }, { w: "w-28" }, { w: "w-36" }].map((chip, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, x: 8 }}
                   animate={{ opacity: [0.12, 0.22, 0.12], x: 0 }}
                   transition={{
-                    opacity: {
-                      duration: 3,
-                      repeat: Infinity,
-                      delay: chip.delay,
-                    },
-                    x: { duration: 0.3, delay: chip.delay },
+                    opacity: { duration: 3, repeat: Infinity, delay: i * 0.05 },
+                    x: { duration: 0.3, delay: i * 0.05 },
                   }}
                   className={`flex-shrink-0 h-7 rounded-md ${chip.w} ${
                     isDarkMode ? "bg-[#2a2a2a]" : "bg-gray-200"
@@ -239,26 +260,46 @@ export function FavoritesSection({
             : "bg-white border border-gray-200 shadow-sm"
         }`}
       >
-        <div className="px-4 py-3 flex items-center gap-2.5">
+        {/* Show bookmakers tab even when empty */}
+        <div
+          className={`flex items-center gap-2.5 px-4 py-3 border-b ${
+            isDarkMode ? "border-[#2a2a2a]" : "border-gray-100"
+          }`}
+        >
           <Bookmark
-            className={`w-4 h-4 ${
-              isDarkMode ? "text-gray-600" : "text-gray-300"
-            }`}
+            className={`w-4 h-4 ${isDarkMode ? "text-gray-600" : "text-gray-300"}`}
           />
-          <span
-            className={`text-sm ${
-              isDarkMode ? "text-gray-500" : "text-gray-400"
-            }`}
-          >
+          <span className={`text-sm ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>
             {translations.noFavoritesDescription}
           </span>
+        </div>
+        {/* Bookmaker search always visible */}
+        <div className="px-4 py-3">
+          <p className={`text-xs mb-2 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}>
+            {translations.noFavBookmarkersDesc}
+          </p>
+          <BookmakerSearch
+            favoriteBookmakers={favorites.bookmakers}
+            onAdd={onAddBookmaker}
+            onRemove={(name) => onRemove("bookmakers", name)}
+            isDarkMode={isDarkMode}
+            language={language}
+            translations={{
+              searchBookmakerPlaceholder: translations.searchBookmakerPlaceholder,
+              noBookmakersFound: translations.noBookmakersFound,
+              bookmakerFavorites: translations.bookmakerFavorites,
+              allRegions: translations.allRegions,
+              visitSite: translations.visitSite,
+              added: translations.added,
+            }}
+          />
         </div>
       </div>
     );
   }
 
   // ─── Has favorites ─────────────────────────────────────────
-  const activeItems = favorites[activeTab];
+  const activeItems = activeTab === "bookmakers" ? favorites.bookmakers : favorites[activeTab as Exclude<FavTab, "bookmakers">];
   const activeTabConfig = tabConfig.find((tab) => tab.key === activeTab)!;
 
   return (
@@ -303,15 +344,11 @@ export function FavoritesSection({
         </div>
         {isCollapsed ? (
           <ChevronDown
-            className={`w-4 h-4 ${
-              isDarkMode ? "text-gray-500" : "text-gray-400"
-            }`}
+            className={`w-4 h-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
           />
         ) : (
           <ChevronUp
-            className={`w-4 h-4 ${
-              isDarkMode ? "text-gray-500" : "text-gray-400"
-            }`}
+            className={`w-4 h-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`}
           />
         )}
       </button>
@@ -327,7 +364,7 @@ export function FavoritesSection({
           >
             {/* Tabs */}
             <div
-              className={`px-4 py-2 flex gap-1 ${
+              className={`px-4 py-2 flex gap-1 overflow-x-auto scrollbar-hide ${
                 isDarkMode
                   ? "border-t border-[#1e1e1e]"
                   : "border-t border-gray-100"
@@ -381,7 +418,32 @@ export function FavoritesSection({
               }`}
             >
               <AnimatePresence mode="wait">
-                {activeItems.length === 0 ? (
+                {/* ── Bookmakers tab (special) ── */}
+                {activeTab === "bookmakers" ? (
+                  <motion.div
+                    key="bookmakers"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <BookmakerSearch
+                      favoriteBookmakers={favorites.bookmakers}
+                      onAdd={onAddBookmaker}
+                      onRemove={(name) => onRemove("bookmakers", name)}
+                      isDarkMode={isDarkMode}
+                      language={language}
+                      translations={{
+                        searchBookmakerPlaceholder: translations.searchBookmakerPlaceholder,
+                        noBookmakersFound: translations.noBookmakersFound,
+                        bookmakerFavorites: translations.bookmakerFavorites,
+                        allRegions: translations.allRegions,
+                        visitSite: translations.visitSite,
+                        added: translations.added,
+                      }}
+                    />
+                  </motion.div>
+                ) : activeItems.length === 0 ? (
                   <motion.div
                     key={`empty-${activeTab}`}
                     initial={{ opacity: 0, y: 6 }}
@@ -390,18 +452,10 @@ export function FavoritesSection({
                     transition={{ duration: 0.15 }}
                     className="py-4 flex flex-col items-center gap-1.5"
                   >
-                    <span
-                      className={
-                        isDarkMode ? "text-gray-700" : "text-gray-200"
-                      }
-                    >
+                    <span className={isDarkMode ? "text-gray-700" : "text-gray-200"}>
                       {activeTabConfig.emptyIcon}
                     </span>
-                    <p
-                      className={`text-xs ${
-                        isDarkMode ? "text-gray-600" : "text-gray-400"
-                      }`}
-                    >
+                    <p className={`text-xs ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
                       {activeTabConfig.emptyDesc}
                     </p>
                   </motion.div>
@@ -417,9 +471,7 @@ export function FavoritesSection({
                     {/* Chips */}
                     <div className="flex flex-wrap gap-1.5">
                       {activeItems.map((item, i) => {
-                        const isActiveFilter =
-                          activeFilterItems.includes(item);
-
+                        const isActiveFilter = activeFilterItems.includes(item);
                         return (
                           <motion.div
                             key={item}
@@ -428,9 +480,7 @@ export function FavoritesSection({
                             exit={{ opacity: 0, scale: 0.95 }}
                             transition={{ delay: i * 0.02 }}
                             layout
-                            onClick={() =>
-                              onQuickFilter?.(activeTab, item)
-                            }
+                            onClick={() => onQuickFilter?.(activeTab, item)}
                             className={`group inline-flex items-center rounded-lg text-sm cursor-pointer transition-all select-none ${
                               isActiveFilter
                                 ? "bg-[#022179] text-white shadow-sm"

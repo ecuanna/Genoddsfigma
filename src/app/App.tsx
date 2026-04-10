@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { LogIn, Moon, Sun, Bookmark, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
+import { LogIn, Moon, Sun, Bookmark, RefreshCw, AlertTriangle, Loader2, Building2 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { SearchBar } from "./components/SearchBar";
@@ -15,6 +15,7 @@ import {
 } from "./components/FavoritesSection";
 import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { BookmakerCompareView } from "./components/BookmakerCompareView";
 import { useOddsData } from "./hooks/useOddsData";
 import type { BettingOdds } from "./types";
 import { Language, useTranslation } from "./translations";
@@ -30,6 +31,7 @@ const defaultFavorites: CategorizedFavorites = {
   matches: [],
   leagues: [],
   sports: [],
+  bookmakers: [],
 };
 
 // "All sports" sentinel — used as filter state value for "no filter"
@@ -49,6 +51,7 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [language, setLanguage] = useState<Language>("tr");
   const [savedOddsIds, setSavedOddsIds] = useState<string[]>([]);
+  const [mainTab, setMainTab] = useState<"all" | "bookmakers">("all");
 
   const t = useTranslation(language);
 
@@ -77,7 +80,11 @@ export default function App() {
     const savedOdds = localStorage.getItem("savedOddsIds");
 
     if (savedUser) setUser(JSON.parse(savedUser));
-    if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
+    if (savedFavorites) {
+      const parsed = JSON.parse(savedFavorites);
+      // Ensure bookmakers field exists for backward compat
+      setFavorites({ bookmakers: [], ...parsed });
+    }
     if (savedTheme) setIsDarkMode(savedTheme === "dark");
     if (savedLanguage) setLanguage(savedLanguage as Language);
     if (savedOdds) setSavedOddsIds(JSON.parse(savedOdds));
@@ -174,6 +181,20 @@ export default function App() {
     );
   };
 
+  // ─── Bookmaker Favorites ──────────────────────────────────────
+  const handleAddBookmaker = (name: string) => {
+    if (!user) {
+      toast(t.toastLoginRequired, {
+        duration: 2500,
+        action: { label: t.login, onClick: () => setIsAuthModalOpen(true) },
+      });
+      return;
+    }
+    if (favorites.bookmakers.includes(name)) return;
+    setFavorites((prev) => ({ ...prev, bookmakers: [...prev.bookmakers, name] }));
+    toast(`${name} ${t.bookmakerAdded}`, { duration: 1800 });
+  };
+
   // Quick filter from FavoritesSection chips
   const handleQuickFilter = (category: keyof CategorizedFavorites, item: string) => {
     if (category === "sports") {
@@ -213,7 +234,8 @@ export default function App() {
     favorites.teams.length +
     favorites.matches.length +
     favorites.leagues.length +
-    favorites.sports.length;
+    favorites.sports.length +
+    favorites.bookmakers.length;
 
   // ─── Available Leagues (filtered by selected sport) ───────────
   const availableLeagues = useMemo(() => {
@@ -348,197 +370,289 @@ export default function App() {
         <FavoritesSection
           favorites={favorites}
           onRemove={removeFavorite}
+          onAddBookmaker={handleAddBookmaker}
           isDarkMode={isDarkMode}
           isLoggedIn={!!user}
           onLoginClick={() => setIsAuthModalOpen(true)}
           translations={t}
           onQuickFilter={handleQuickFilter}
           activeFilterItems={activeFilterItems}
+          language={language}
         />
 
         <div className={`${isDarkMode ? "bg-[#141414]" : "bg-white"} rounded-lg shadow-lg overflow-hidden`}>
-          {/* Filter Section */}
-          <div className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"} border-b p-4`}>
-            <FilterBar
-              selectedSport={selectedSport}
-              onSportChange={(sport) => {
-                setSelectedSport(sport);
-                setSelectedLeague(ALL_SENTINEL);
-              }}
-              selectedLeague={selectedLeague}
-              onLeagueChange={setSelectedLeague}
-              sports={apiSports}
-              leagues={availableLeagues}
-              isDarkMode={isDarkMode}
-              isLoggedIn={!!user}
-              favoriteSports={favorites.sports}
-              favoriteLeagues={favorites.leagues}
-              onToggleSportFavorite={(sport) => toggleFavorite("sports", sport)}
-              onToggleLeagueFavorite={(league) => toggleFavorite("leagues", league)}
-              translations={t}
-            />
-
-            {/* Data status bar */}
-            <div className={`flex items-center justify-between mt-3 pt-3 border-t ${
-              isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
-            }`}>
-              <div className="flex items-center gap-2">
-                {isLoading && !isInitialLoading && (
-                  <Loader2 className={`w-3.5 h-3.5 animate-spin ${isDarkMode ? "text-blue-400" : "text-[#022179]"}`} />
-                )}
-                {lastUpdated && (
-                  <span className={`text-xs ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
-                    {t.lastUpdated}: {formatLastUpdated()}
-                  </span>
-                )}
-                {eventCount > 0 && (
-                  <span className={`text-xs ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
-                    · {eventCount} {language === "tr" ? "maç" : "matches"}
-                  </span>
-                )}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                  isDarkMode ? "bg-green-500/10 text-green-500/60" : "bg-green-100 text-green-600/60"
-                }`}>
-                  LIVE
-                </span>
-              </div>
+          {/* ── Main Tab Bar (shown when logged in) ── */}
+          {user && (
+            <div className={`flex border-b ${isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"}`}>
               <button
-                onClick={refetch}
-                disabled={isLoading}
-                className={`p-1.5 rounded-md transition-all ${
-                  isDarkMode
-                    ? "text-gray-600 hover:text-gray-400 hover:bg-[#1e1e1e]"
-                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                } disabled:opacity-30`}
-                title={t.retry}
+                onClick={() => setMainTab("all")}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-all border-b-2 ${
+                  mainTab === "all"
+                    ? isDarkMode
+                      ? "border-blue-400 text-blue-400 bg-blue-500/5"
+                      : "border-[#022179] text-[#022179] bg-blue-50/40"
+                    : isDarkMode
+                    ? "border-transparent text-gray-500 hover:text-gray-300"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+                {t.allOddsTab}
+              </button>
+              <button
+                onClick={() => setMainTab("bookmakers")}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-all border-b-2 ${
+                  mainTab === "bookmakers"
+                    ? isDarkMode
+                      ? "border-blue-400 text-blue-400 bg-blue-500/5"
+                      : "border-[#022179] text-[#022179] bg-blue-50/40"
+                    : isDarkMode
+                    ? "border-transparent text-gray-500 hover:text-gray-300"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                {t.favBookmarkersTab}
+                {favorites.bookmakers.length > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                      mainTab === "bookmakers"
+                        ? isDarkMode
+                          ? "bg-blue-500/20 text-blue-400"
+                          : "bg-[#022179]/10 text-[#022179]"
+                        : isDarkMode
+                        ? "bg-[#252525] text-gray-500"
+                        : "bg-gray-200 text-gray-500"
+                    }`}
+                  >
+                    {favorites.bookmakers.length}
+                  </span>
+                )}
               </button>
             </div>
-          </div>
+          )}
 
-          {/* Odds List */}
-          <div className="p-4 md:p-6">
-            {isInitialLoading ? (
-              <div className="py-16 flex flex-col items-center gap-3">
-                <Loader2 className={`w-8 h-8 animate-spin ${isDarkMode ? "text-blue-400" : "text-[#022179]"}`} />
-                <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  {t.loadingOdds}
-                </p>
-              </div>
-            ) : error && allOdds.length === 0 ? (
-              <div className="py-12 flex flex-col items-center gap-3">
-                <AlertTriangle className={`w-8 h-8 ${isDarkMode ? "text-red-400" : "text-red-500"}`} />
-                <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                  {t.errorLoadingOdds}
-                </p>
-                {error && (
-                  <p className={`text-xs ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
-                    {error}
-                  </p>
-                )}
-                <button
-                  onClick={refetch}
-                  className={`mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isDarkMode
-                      ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
-                      : "bg-[#022179] text-white hover:bg-[#022179]/90"
-                  }`}
-                >
-                  {t.retry}
-                </button>
-              </div>
+          {/* ── Bookmaker Compare Tab ── */}
+          <AnimatePresence mode="wait">
+            {mainTab === "bookmakers" && user ? (
+              <motion.div
+                key="bookmakers-tab"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <BookmakerCompareView
+                  allOdds={allOdds}
+                  favoriteBookmakers={favorites.bookmakers}
+                  isDarkMode={isDarkMode}
+                  language={language}
+                  translations={{
+                    noFavBookmakers: t.noFavBookmakers,
+                    noOddsForBookmakers: t.noOddsForBookmakers,
+                    noOddsForBookmakersDesc: t.noOddsForBookmakersDesc,
+                    home: t.home,
+                    draw: t.draw,
+                    away: t.away,
+                    bestOdds: t.bestOdds,
+                    visitSite: t.visitSite,
+                    matchCount: t.matchCount,
+                    addBookmakersHint: t.addBookmakersHint,
+                  }}
+                />
+              </motion.div>
             ) : (
-              <div className="space-y-8">
-                {Object.keys(filteredAndGroupedOdds).length === 0 ? (
-                  <div className="py-12 text-center">
-                    <p className={`${isDarkMode ? "text-gray-400" : "text-gray-500"} text-lg`}>
-                      {t.noResults}
-                    </p>
+              <motion.div
+                key="all-odds-tab"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                {/* Filter Section */}
+                <div className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"} border-b p-4`}>
+                  <FilterBar
+                    selectedSport={selectedSport}
+                    onSportChange={(sport) => {
+                      setSelectedSport(sport);
+                      setSelectedLeague(ALL_SENTINEL);
+                    }}
+                    selectedLeague={selectedLeague}
+                    onLeagueChange={setSelectedLeague}
+                    sports={apiSports}
+                    leagues={availableLeagues}
+                    isDarkMode={isDarkMode}
+                    isLoggedIn={!!user}
+                    favoriteSports={favorites.sports}
+                    favoriteLeagues={favorites.leagues}
+                    onToggleSportFavorite={(sport) => toggleFavorite("sports", sport)}
+                    onToggleLeagueFavorite={(league) => toggleFavorite("leagues", league)}
+                    translations={t}
+                  />
+
+                  {/* Data status bar */}
+                  <div className={`flex items-center justify-between mt-3 pt-3 border-t ${
+                    isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {isLoading && !isInitialLoading && (
+                        <Loader2 className={`w-3.5 h-3.5 animate-spin ${isDarkMode ? "text-blue-400" : "text-[#022179]"}`} />
+                      )}
+                      {lastUpdated && (
+                        <span className={`text-xs ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
+                          {t.lastUpdated}: {formatLastUpdated()}
+                        </span>
+                      )}
+                      {eventCount > 0 && (
+                        <span className={`text-xs ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
+                          · {eventCount} {language === "tr" ? "maç" : "matches"}
+                        </span>
+                      )}
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        isDarkMode ? "bg-green-500/10 text-green-500/60" : "bg-green-100 text-green-600/60"
+                      }`}>
+                        LIVE
+                      </span>
+                    </div>
+                    <button
+                      onClick={refetch}
+                      disabled={isLoading}
+                      className={`p-1.5 rounded-md transition-all ${
+                        isDarkMode
+                          ? "text-gray-600 hover:text-gray-400 hover:bg-[#1e1e1e]"
+                          : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      } disabled:opacity-30`}
+                      title={t.retry}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+                    </button>
                   </div>
-                ) : (
-                  Object.entries(filteredAndGroupedOdds).map(([match, odds]) => {
-                    const teams = getTeams(match);
-                    const isMatchFav = favorites.matches.includes(match);
-                    return (
-                      <div key={match} className="space-y-3">
-                        {/* ── Match Header ── */}
-                        <div className="flex items-center gap-2 px-1">
-                          <button
-                            onClick={() => toggleFavorite("matches", match)}
-                            className={`p-1.5 rounded-md transition-all flex-shrink-0 ${
-                              isMatchFav
-                                ? isDarkMode ? "text-blue-400" : "text-[#022179]"
-                                : isDarkMode ? "text-gray-700 hover:text-gray-400" : "text-gray-300 hover:text-gray-500"
-                            }`}
-                            title={isMatchFav ? t.removeMatchFromFav : t.addMatchToFav}
-                          >
-                            <AnimatePresence mode="wait">
-                              <motion.span
-                                key={isMatchFav ? "saved" : "unsaved"}
-                                initial={{ scale: 0.8, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.8, opacity: 0 }}
-                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                              >
-                                <Bookmark
-                                  className={`w-5 h-5 ${
-                                    isMatchFav
-                                      ? isDarkMode ? "fill-blue-400 text-blue-400" : "fill-[#022179] text-[#022179]"
-                                      : ""
-                                  }`}
-                                />
-                              </motion.span>
-                            </AnimatePresence>
-                          </button>
+                </div>
 
-                          <div className="flex items-center gap-0 flex-wrap">
-                            {teams.map((team, idx) => {
-                              const isTeamFav = favorites.teams.includes(team);
-                              const isBlueName = isTeamFav || isMatchFav;
-                              return (
-                                <span key={team} className="flex items-center">
-                                  <button
-                                    onDoubleClick={() => toggleFavorite("teams", team)}
-                                    className={`group/team relative px-1.5 py-0.5 rounded transition-all select-none ${
-                                      isBlueName
-                                        ? isDarkMode ? "text-blue-400" : "text-[#022179]"
-                                        : isDarkMode ? "text-white" : "text-gray-900"
-                                    }`}
-                                    title={isTeamFav ? t.removeTeamFromFav : t.addTeamToFav}
-                                  >
-                                    <span className="text-xl font-bold">{team}</span>
-                                  </button>
-                                  {idx < teams.length - 1 && (
-                                    <span className={`mx-1 text-sm ${isDarkMode ? "text-gray-600" : "text-gray-300"}`}>
-                                      –
-                                    </span>
-                                  )}
-                                </span>
-                              );
-                            })}
-                          </div>
+                {/* Odds List */}
+                <div className="p-4 md:p-6">
+                  {isInitialLoading ? (
+                    <div className="py-16 flex flex-col items-center gap-3">
+                      <Loader2 className={`w-8 h-8 animate-spin ${isDarkMode ? "text-blue-400" : "text-[#022179]"}`} />
+                      <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                        {t.loadingOdds}
+                      </p>
+                    </div>
+                  ) : error && allOdds.length === 0 ? (
+                    <div className="py-12 flex flex-col items-center gap-3">
+                      <AlertTriangle className={`w-8 h-8 ${isDarkMode ? "text-red-400" : "text-red-500"}`} />
+                      <p className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                        {t.errorLoadingOdds}
+                      </p>
+                      {error && (
+                        <p className={`text-xs ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}>
+                          {error}
+                        </p>
+                      )}
+                      <button
+                        onClick={refetch}
+                        className={`mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isDarkMode
+                            ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+                            : "bg-[#022179] text-white hover:bg-[#022179]/90"
+                        }`}
+                      >
+                        {t.retry}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-8">
+                      {Object.keys(filteredAndGroupedOdds).length === 0 ? (
+                        <div className="py-12 text-center">
+                          <p className={`${isDarkMode ? "text-gray-400" : "text-gray-500"} text-lg`}>
+                            {t.noResults}
+                          </p>
                         </div>
+                      ) : (
+                        Object.entries(filteredAndGroupedOdds).map(([match, odds]) => {
+                          const teams = getTeams(match);
+                          const isMatchFav = favorites.matches.includes(match);
+                          return (
+                            <div key={match} className="space-y-3">
+                              {/* ── Match Header ── */}
+                              <div className="flex items-center gap-2 px-1">
+                                <button
+                                  onClick={() => toggleFavorite("matches", match)}
+                                  className={`p-1.5 rounded-md transition-all flex-shrink-0 ${
+                                    isMatchFav
+                                      ? isDarkMode ? "text-blue-400" : "text-[#022179]"
+                                      : isDarkMode ? "text-gray-700 hover:text-gray-400" : "text-gray-300 hover:text-gray-500"
+                                  }`}
+                                  title={isMatchFav ? t.removeMatchFromFav : t.addMatchToFav}
+                                >
+                                  <AnimatePresence mode="wait">
+                                    <motion.span
+                                      key={isMatchFav ? "saved" : "unsaved"}
+                                      initial={{ scale: 0.8, opacity: 0 }}
+                                      animate={{ scale: 1, opacity: 1 }}
+                                      exit={{ scale: 0.8, opacity: 0 }}
+                                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                    >
+                                      <Bookmark
+                                        className={`w-5 h-5 ${
+                                          isMatchFav
+                                            ? isDarkMode ? "fill-blue-400 text-blue-400" : "fill-[#022179] text-[#022179]"
+                                            : ""
+                                        }`}
+                                      />
+                                    </motion.span>
+                                  </AnimatePresence>
+                                </button>
 
-                        {/* Odds Cards */}
-                        {odds.map((odd) => (
-                          <OddsCard
-                            key={odd.id}
-                            odds={odd}
-                            isDarkMode={isDarkMode}
-                            isMatchSaved={savedOddsIds.includes(odd.id)}
-                            onToggleMatchSave={() => toggleSavedOdds(odd.id, odd.company, match)}
-                            saveTitle={savedOddsIds.includes(odd.id) ? t.removeOddsFromFav : t.addOddsToFav}
-                            translations={t}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                                <div className="flex items-center gap-0 flex-wrap">
+                                  {teams.map((team, idx) => {
+                                    const isTeamFav = favorites.teams.includes(team);
+                                    const isBlueName = isTeamFav || isMatchFav;
+                                    return (
+                                      <span key={team} className="flex items-center">
+                                        <button
+                                          onDoubleClick={() => toggleFavorite("teams", team)}
+                                          className={`group/team relative px-1.5 py-0.5 rounded transition-all select-none ${
+                                            isBlueName
+                                              ? isDarkMode ? "text-blue-400" : "text-[#022179]"
+                                              : isDarkMode ? "text-white" : "text-gray-900"
+                                          }`}
+                                          title={isTeamFav ? t.removeTeamFromFav : t.addTeamToFav}
+                                        >
+                                          <span className="text-xl font-bold">{team}</span>
+                                        </button>
+                                        {idx < teams.length - 1 && (
+                                          <span className={`mx-1 text-sm ${isDarkMode ? "text-gray-600" : "text-gray-300"}`}>
+                                            –
+                                          </span>
+                                        )}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Odds Cards */}
+                              {odds.map((odd) => (
+                                <OddsCard
+                                  key={odd.id}
+                                  odds={odd}
+                                  isDarkMode={isDarkMode}
+                                  isMatchSaved={savedOddsIds.includes(odd.id)}
+                                  onToggleMatchSave={() => toggleSavedOdds(odd.id, odd.company, match)}
+                                  saveTitle={savedOddsIds.includes(odd.id) ? t.removeOddsFromFav : t.addOddsToFav}
+                                  translations={t}
+                                />
+                              ))}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             )}
-          </div>
+          </AnimatePresence>
         </div>
       </div>
 
@@ -572,6 +686,7 @@ export default function App() {
             favorites={favorites}
             onRemove={removeFavorite}
             isDarkMode={isDarkMode}
+            language={language}
             translations={t}
           />
           <ProfileModal

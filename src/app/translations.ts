@@ -135,6 +135,33 @@ export const translations = {
     favFeature1: 'Favori takımlarınızı takip edin',
     favFeature2: 'Maç oranlarını karşılaştırın',
     favFeature3: 'Özel bildirimler alın',
+
+    // Bookmaker Favorites
+    favBookmakers: 'Bahis Siteleri',
+    noFavBookmakers: 'Henüz favori bahis siteniz yok.',
+    noFavBookmarkersDesc: 'Aşağıdan favori bahis sitelerinizi arayıp ekleyin. API desteği olmayan siteler de eklenebilir.',
+    searchBookmakerPlaceholder: 'Bahis sitesi ara... (ör: Bets10, Bet365)',
+    noBookmakersFound: 'Sonuç bulunamadı',
+    bookmakerFavorites: 'Favori Siteler',
+    allRegions: 'Tümü',
+    visitSite: 'Siteyi Ziyaret Et',
+    added: 'Eklendi',
+    bookmakerAdded: 'favorilere eklendi',
+    bookmakerRemoved: 'favorilerden çıkarıldı',
+
+    // Main content tabs
+    allOddsTab: 'Tüm Oranlar',
+    favBookmarkersTab: 'Favori Sitelerim',
+
+    // Bookmaker Compare View
+    noOddsForBookmakers: 'Favori siteleriniz için oran bulunamadı.',
+    noOddsForBookmakersDesc: 'Türk bahis siteleri ve bazı uluslararası siteler henüz API üzerinden veri sunmamaktadır. Uluslararası siteleri de favorilere ekleyerek karşılaştırma yapabilirsiniz.',
+    bookmakerNoData: 'Veri yok',
+    comparisonTitle: 'Favori Sitelerim — Oran Karşılaştırması',
+    matchCount: 'maç bulundu',
+    bookmakerCount: 'site veri sunuyor',
+    apiNotSupported: 'Bazı siteler için veri yok',
+    addBookmakersHint: '"Bahis Siteleri" sekmesinden favori sitelerinizi ekleyin, ardından oranları burada karşılaştırın.',
     
     // Settings Modal
     settingsTitle: 'Ayarlar',
@@ -373,6 +400,33 @@ export const translations = {
     favFeature1: 'Track your favorite teams',
     favFeature2: 'Compare match odds',
     favFeature3: 'Get special notifications',
+
+    // Bookmaker Favorites
+    favBookmakers: 'Bookmakers',
+    noFavBookmakers: 'You don\'t have any favorite bookmakers yet.',
+    noFavBookmarkersDesc: 'Search and add your favorite bookmakers below. Bookmakers without API support can also be added.',
+    searchBookmakerPlaceholder: 'Search bookmaker... (e.g., Bets10, Bet365)',
+    noBookmakersFound: 'No results found',
+    bookmakerFavorites: 'Favorite Bookmakers',
+    allRegions: 'All',
+    visitSite: 'Visit Site',
+    added: 'Added',
+    bookmakerAdded: 'added to favorites',
+    bookmakerRemoved: 'removed from favorites',
+
+    // Main content tabs
+    allOddsTab: 'All Odds',
+    favBookmarkersTab: 'My Favorite Bookmakers',
+
+    // Bookmaker Compare View
+    noOddsForBookmakers: 'No odds found for your favorite bookmakers.',
+    noOddsForBookmakersDesc: 'Some Turkish bookmakers and international bookmakers do not yet provide data via API. You can add international bookmakers to your favorites to compare odds.',
+    bookmakerNoData: 'No Data',
+    comparisonTitle: 'My Favorite Bookmakers — Odds Comparison',
+    matchCount: 'matches found',
+    bookmakerCount: 'bookmakers providing data',
+    apiNotSupported: 'No data for some bookmakers',
+    addBookmakersHint: 'Add your favorite bookmakers from the "Bookmakers" tab, then compare odds here.',
     
     // Settings Modal
     settingsTitle: 'Settings',
