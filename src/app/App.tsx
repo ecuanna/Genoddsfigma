@@ -1,5 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
-import { LogIn, Moon, Sun, Bookmark, RefreshCw, AlertTriangle, Loader2, Building2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { SearchBar } from "./components/SearchBar";
@@ -16,7 +15,12 @@ import {
 import { ProfileModal } from "./components/ProfileModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { BookmakerCompareView } from "./components/BookmakerCompareView";
+import { GeoBlockScreen } from "./components/GeoBlockScreen";
+import { GeoCheckLoader } from "./components/GeoCheckLoader";
+import { LegalModal } from "./components/LegalModal";
+import { CookieBanner } from "./components/CookieBanner";
 import { useOddsData } from "./hooks/useOddsData";
+import { useGeoBlock } from "./hooks/useGeoBlock";
 import type { BettingOdds } from "./types";
 import { Language, useTranslation } from "./translations";
 import { Logo } from "./components/Logo";
@@ -52,6 +56,18 @@ export default function App() {
   const [language, setLanguage] = useState<Language>("tr");
   const [savedOddsIds, setSavedOddsIds] = useState<string[]>([]);
   const [mainTab, setMainTab] = useState<"all" | "bookmakers">("all");
+
+  // ─── Legal Modal ──────────────────────────────────────────────
+  const [legalOpen, setLegalOpen] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<"terms" | "privacy" | "cookies" | "affiliate">("terms");
+
+  const openLegal = (doc: "terms" | "privacy" | "cookies" | "affiliate") => {
+    setLegalDoc(doc);
+    setLegalOpen(true);
+  };
+
+  // ─── Geo Block ────────────────────────────────────────────────
+  const { status: geoStatus } = useGeoBlock();
 
   const t = useTranslation(language);
 
@@ -290,6 +306,10 @@ export default function App() {
     if (mins < 60) return `${mins} ${t.minutesAgo}`;
     return `${Math.floor(mins / 60)} ${t.hoursAgo}`;
   };
+
+  // ─── Geo-block Gate ───────────────────────────────────────────
+  if (geoStatus === "checking") return <GeoCheckLoader isDarkMode={isDarkMode} />;
+  if (geoStatus === "blocked")  return <GeoBlockScreen  isDarkMode={isDarkMode} />;
 
   return (
     <div className={`min-h-screen ${isDarkMode ? "bg-[#0a0a0a] text-white" : "bg-gray-50"}`}>
@@ -661,6 +681,24 @@ export default function App() {
         <div className="container mx-auto px-4 text-center">
           <p className="text-gray-400 text-sm">&copy; 2026 GENODDS. {t.allRightsReserved}</p>
           <p className="text-gray-500 text-xs mt-2">{t.ageWarning}</p>
+
+          {/* ── Legal links ── */}
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-5">
+            {[
+              { key: "terms" as const,     label: language === "tr" ? "Kullanıcı Sözleşmesi"  : "User Agreement" },
+              { key: "privacy" as const,   label: language === "tr" ? "Gizlilik Politikası"    : "Privacy Policy" },
+              { key: "cookies" as const,   label: language === "tr" ? "Çerez Politikası"       : "Cookie Policy" },
+              { key: "affiliate" as const, label: language === "tr" ? "Affiliate Açıklaması"   : "Affiliate Disclosure" },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => openLegal(key)}
+                className="text-xs text-blue-300/50 hover:text-blue-200 transition-colors underline-offset-2 hover:underline"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="mx-auto px-4 sm:px-6 mt-8 pt-6 border-t border-white/10">
           <p className="text-[11px] text-blue-200/40 leading-relaxed text-center">
@@ -712,6 +750,22 @@ export default function App() {
           />
         </>
       )}
+
+      {/* ── Legal Modal ── */}
+      <LegalModal
+        isOpen={legalOpen}
+        onClose={() => setLegalOpen(false)}
+        initialDoc={legalDoc}
+        isDarkMode={isDarkMode}
+        language={language}
+      />
+
+      {/* ── Cookie Consent Banner ── */}
+      <CookieBanner
+        isDarkMode={isDarkMode}
+        language={language}
+        onOpenCookiePolicy={() => openLegal("cookies")}
+      />
     </div>
   );
 }
