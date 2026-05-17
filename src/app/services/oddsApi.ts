@@ -42,7 +42,7 @@ interface TheOddsApiBookmaker {
   markets: TheOddsApiMarket[];
 }
 
-interface TheOddsApiEvent {
+export interface TheOddsApiEvent {
   id: string;
   sport_key: string;
   sport_title: string;
@@ -285,7 +285,7 @@ function computeBestOdds(entries: BettingOdds[]): BettingOdds[] {
 
 // ─── Event Transformer ───────────────────────────────────────
 
-function transformEvents(events: TheOddsApiEvent[]): BettingOdds[] {
+export function transformEvents(events: TheOddsApiEvent[]): BettingOdds[] {
   const rawEntries: BettingOdds[] = [];
 
   for (const event of events) {
@@ -344,7 +344,7 @@ function transformEvents(events: TheOddsApiEvent[]): BettingOdds[] {
   return Array.from(grouped.values()).flatMap(computeBestOdds);
 }
 
-function buildSportsAndLeagues(odds: BettingOdds[]): {
+export function buildSportsAndLeagues(odds: BettingOdds[]): {
   sports: SportOption[];
   leagues: LeagueOption[];
 } {

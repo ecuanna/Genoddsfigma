@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { Sun, Moon, LogIn, Building2, Loader2, RefreshCw, AlertTriangle, Bookmark } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { SearchBar } from "./components/SearchBar";
@@ -197,7 +198,7 @@ export default function App() {
     );
   };
 
-  // ─── Bookmaker Favorites ──────────────────────────────────────
+  // ─── Bookmaker Favorites ─────────────────────────────────────
   const handleAddBookmaker = (name: string) => {
     if (!user) {
       toast(t.toastLoginRequired, {
@@ -318,6 +319,30 @@ export default function App() {
         position="bottom-center"
         toastOptions={{ style: { borderRadius: "10px", fontSize: "13px" } }}
       />
+
+      {/* ── Mock Data Warning Banner ── */}
+      {isMockData && (
+        <div className="bg-amber-500 text-white text-xs py-2 px-4 text-center flex items-center justify-center gap-2 flex-wrap">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>
+            {language === "tr"
+              ? "Demo verileri gösteriliyor. Gerçek oranlar için Supabase dashboard → Edge Functions → Secrets bölümünde geçerli bir "
+              : "Showing demo data. For live odds, add a valid "}
+            <strong>ODDS_API_KEY</strong>
+            {language === "tr"
+              ? " girin. Ücretsiz anahtar: "
+              : " in Supabase dashboard → Edge Functions → Secrets. Free key: "}
+            <a
+              href="https://the-odds-api.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold hover:text-amber-100"
+            >
+              the-odds-api.com
+            </a>
+          </span>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <header className="sticky top-0 z-50 bg-[#022179] text-white shadow-lg">
