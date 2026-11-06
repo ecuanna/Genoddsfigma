@@ -44,6 +44,13 @@ export function useGeoBlock(): { status: GeoStatus; country: string | null } {
   const [country, setCountry] = useState<string | null>(null);
 
   useEffect(() => {
+    // Keep production restrictions intact while allowing local UI QA.
+    if (import.meta.env.DEV && ["localhost", "127.0.0.1"].includes(window.location.hostname)) {
+      setStatus("allowed");
+      setCountry("LOCAL");
+      return;
+    }
+
     // Check sessionStorage cache first
     try {
       const raw = sessionStorage.getItem(CACHE_KEY);

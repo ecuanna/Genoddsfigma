@@ -78,14 +78,10 @@ export function FilterBar({
     return league.label;
   };
 
-  const sportOptions = [
-    { key: "Tümü", label: translations.allSports, isAll: true },
-    ...sports.map((s) => ({
-      key: s.key,
-      label: localizeSport(s),
-      isAll: false,
-    })),
-  ];
+  const sportOptions = sports.map((s) => ({
+    key: s.key,
+    label: localizeSport(s),
+  }));
 
   const leagueOptions = leagues.map((l) => ({
     key: l.key,
@@ -134,7 +130,7 @@ export function FilterBar({
           {sportOptions.map((sport) => {
             const isFav = favoriteSports.includes(sport.key);
             const isSelected = selectedSport === sport.key;
-            const canFav = isLoggedIn && !sport.isAll && onToggleSportFavorite;
+            const canFav = isLoggedIn && onToggleSportFavorite;
 
             return (
               <button
@@ -175,16 +171,6 @@ export function FilterBar({
           {translations.allSports === "All" ? "League" : "Lig"}
         </label>
         <div className="flex flex-wrap gap-1.5">
-          <button
-            onClick={() => onLeagueChange("Tümü")}
-            className={`h-9 px-3.5 rounded-lg text-sm font-medium transition-all select-none ${getBtnClass(
-              selectedLeague === "Tümü",
-              false
-            )}`}
-          >
-            {translations.allLeagues}
-          </button>
-
           {leagueOptions.map((league) => {
             const isFav = favoriteLeagues.includes(league.key);
             const isSelected = selectedLeague === league.key;
