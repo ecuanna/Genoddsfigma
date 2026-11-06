@@ -1,26 +1,9 @@
 /**
- * The Odds API Integration
- * Docs: https://the-odds-api.com/lol-odds-api/
- *
- * Endpoints:
- *   GET /v4/sports/{sport_key}/odds  — odds for a sport (h2h markets)
+ * Pure client-side transforms for the server-owned The Odds API response.
+ * The upstream API key and network calls must never live in this module.
  */
 
 import type { BettingOdds, SportOption, LeagueOption } from "../types";
-
-// ─── Configuration ────────────────────────────────────────────
-const ODDS_API_BASE = "https://api.the-odds-api.com/v4";
-
-// API key is embedded directly so it works regardless of env setup
-const API_KEY =
-  import.meta.env.VITE_ODDS_API_KEY ||
-  "9341c1e0914b8a3b6efe5a0d74764620";
-
-const POLL_INTERVAL_LIVE    = Number(import.meta.env.VITE_POLL_INTERVAL_LIVE) || 30_000;
-const POLL_INTERVAL_DEFAULT = Number(import.meta.env.VITE_POLL_INTERVAL)      || 120_000;
-
-const CACHE_TTL_EVENTS = 2  * 60 * 1000;  // 2 min
-const CACHE_TTL_SPORTS = 15 * 60 * 1000;  // 15 min
 
 // ─── The Odds API Types ───────────────────────────────────────
 
@@ -50,38 +33,6 @@ export interface TheOddsApiEvent {
   home_team: string;
   away_team: string;
   bookmakers: TheOddsApiBookmaker[];
-}
-
-interface TheOddsApiSport {
-  key: string;
-  group: string;
-  title: string;
-  description: string;
-  active: boolean;
-  has_outrights: boolean;
-}
-
-// ─── Error Class ─────────────────────────────────────────────
-
-export class ApiError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
-// ─── In-Memory Cache ─────────────────────────────────────────
-
-interface CacheEntry<T> {
-  data: T;
-  ts: number;
-}
-
-const eventsCache = new Map<string, CacheEntry<TheOddsApiEvent[]>>();
-let sportsListCache: CacheEntry<TheOddsApiSport[]> | null = null;
-
-function isFresh<T>(entry: CacheEntry<T> | null | undefined, ttl: number): boolean {
-  return !!entry && Date.now() - entry.ts < ttl;
 }
 
 // ─── Sport Group Mapping ──────────────────────────────────────
@@ -224,28 +175,6 @@ function getBookmakerUrl(key: string, title: string): string {
   return "";
 }
 
-// ─── API Fetcher ──────────────────────────────────────────────
-
-async function apiFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(`${ODDS_API_BASE}${path}`);
-  url.searchParams.set("apiKey", API_KEY);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  }
-
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new ApiError(res.status, `Odds API ${res.status}: ${text || res.statusText}`);
-  }
-
-  return res.json();
-}
-
 // ─── Status Heuristic ────────────────────────────────────────
 
 function determineEventStatus(commenceTime: string): "upcoming" | "live" | "finished" {
@@ -375,133 +304,4 @@ export function buildSportsAndLeagues(odds: BettingOdds[]): {
     sports:  Array.from(sportSet.values()),
     leagues: Array.from(leagueSet.values()),
   };
-}
-
-// ─── Default Sport Keys ───────────────────────────────────────
-// These are fetched in parallel on every load.
-// Each key = 1 API request. Free plan allows ~500 requests/month.
-
-const DEFAULT_SPORT_KEYS = [
-  // Soccer
-  "soccer_epl",
-  "soccer_uefa_champs_league",
-  "soccer_germany_bundesliga",
-  "soccer_spain_la_liga",
-  "soccer_italy_serie_a",
-  "soccer_france_ligue_one",
-  "soccer_turkey_super_lig",
-  // Basketball
-  "basketball_nba",
-  "basketball_euroleague",
-  // Tennis
-  "tennis_atp_miami_open",
-  "tennis_wta_miami_open",
-  // Ice Hockey
-  "icehockey_nhl",
-  // Baseball
-  "baseball_mlb",
-];
-
-// ─── Sports List Fetch ────────────────────────────────────────
-
-async function fetchActiveSports(): Promise<TheOddsApiSport[]> {
-  if (isFresh(sportsListCache, CACHE_TTL_SPORTS)) {
-    return sportsListCache!.data;
-  }
-  const sports = await apiFetch<TheOddsApiSport[]>("/sports", { all: "false" });
-  const filtered = sports.filter((s) => s.active && !s.has_outrights);
-  sportsListCache = { data: filtered, ts: Date.now() };
-  return filtered;
-}
-
-// ─── Odds Fetch for a Single Sport Key ───────────────────────
-
-async function fetchEventsForSport(
-  sportKey: string,
-  force = false
-): Promise<TheOddsApiEvent[]> {
-  if (!force && isFresh(eventsCache.get(sportKey), CACHE_TTL_EVENTS)) {
-    return eventsCache.get(sportKey)!.data;
-  }
-
-  try {
-    const events = await apiFetch<TheOddsApiEvent[]>(
-      `/sports/${sportKey}/odds`,
-      {
-        regions:     "eu,uk,us",
-        markets:     "h2h",
-        oddsFormat:  "decimal",
-      }
-    );
-    eventsCache.set(sportKey, { data: events, ts: Date.now() });
-    return events;
-  } catch (err) {
-    // 404 = sport has no current events; treat as empty, not an error
-    if (err instanceof ApiError && (err.status === 404 || err.status === 422)) {
-      eventsCache.set(sportKey, { data: [], ts: Date.now() });
-      return [];
-    }
-    throw err;
-  }
-}
-
-// ─── Public Types & API ───────────────────────────────────────
-
-export interface OddsDataResult {
-  odds:    BettingOdds[];
-  sports:  SportOption[];
-  leagues: LeagueOption[];
-}
-
-/**
- * Main entry point — fetches real odds from The Odds API.
- * Always uses the real API (key is embedded above).
- */
-export async function fetchOddsData(params?: {
-  force?: boolean;
-}): Promise<OddsDataResult> {
-  const force = params?.force ?? false;
-
-  // Fetch all sport keys in parallel (cache-aware)
-  const results = await Promise.allSettled(
-    DEFAULT_SPORT_KEYS.map((key) => fetchEventsForSport(key, force))
-  );
-
-  const allEvents: TheOddsApiEvent[] = [];
-  let firstError: unknown = null;
-
-  for (const r of results) {
-    if (r.status === "fulfilled") {
-      allEvents.push(...r.value);
-    } else if (!firstError) {
-      firstError = r.reason;
-    }
-  }
-
-  // If we got zero events and every request failed, throw the first error
-  if (allEvents.length === 0 && firstError) {
-    throw firstError;
-  }
-
-  const odds = transformEvents(allEvents);
-  const { sports, leagues } = buildSportsAndLeagues(odds);
-
-  return { odds, sports, leagues };
-}
-
-/**
- * Returns the appropriate polling interval:
- * 30 s when live events exist, 120 s otherwise.
- */
-export function getPollingInterval(odds: BettingOdds[]): number {
-  const hasLive = odds.some((o) => o.eventStatus === "live");
-  return hasLive ? POLL_INTERVAL_LIVE : POLL_INTERVAL_DEFAULT;
-}
-
-/**
- * Clears all cached data — useful for forced refresh.
- */
-export function clearOddsCache(): void {
-  eventsCache.clear();
-  sportsListCache = null;
 }

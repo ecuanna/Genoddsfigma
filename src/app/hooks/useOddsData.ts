@@ -1,22 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
-import type { BettingOdds, SportOption, LeagueOption } from "../types";
-import { transformEvents, buildSportsAndLeagues } from "../services/oddsApi";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { BettingOdds, LeagueOption, SportOption } from "../types";
+import { transformEvents } from "../services/oddsApi";
 import type { TheOddsApiEvent } from "../services/oddsApi";
-import { projectId, publicAnonKey } from "/utils/supabase/info";
-import { MOCK_ODDS, MOCK_SPORTS, MOCK_LEAGUES } from "../data/mockOddsData";
+import { projectId, publicAnonKey } from "../../../utils/supabase/info";
+import { MOCK_ODDS } from "../data/mockOddsData";
+import { CURATED_LEAGUES, CURATED_SPORTS } from "../data/sportCatalog";
 
-// ─── Backend URL ──────────────────────────────────────────────
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-dbae911f`;
 const ODDS_ENDPOINT = `${SERVER_BASE}/odds`;
+const CLIENT_CACHE_TTL_MS = 5 * 60 * 1_000;
 
-// Poll every 5 minutes
-const POLL_INTERVAL_MS = 5 * 60 * 1_000;
+type CachedPayload = {
+  events: TheOddsApiEvent[];
+  fetchedAt: string;
+};
 
-// Sentinel value: mock event IDs always start with "mock_"
-const isMockOdds = (o: BettingOdds[]) =>
-  o.length > 0 && o[0].eventId.startsWith("mock_");
-
-// ─── Types ────────────────────────────────────────────────────
 export interface UseOddsDataReturn {
   odds: BettingOdds[];
   sports: SportOption[];
@@ -30,132 +28,124 @@ export interface UseOddsDataReturn {
   eventCount: number;
 }
 
-// ─── Hook ─────────────────────────────────────────────────────
-// IMPORTANT: hook count / order must stay stable across renders.
-// Do NOT add new hooks here without removing an equivalent one.
-export function useOddsData(): UseOddsDataReturn {
-  const [odds, setOdds]       = useState<BettingOdds[]>([]);
-  const [sports, setSports]   = useState<SportOption[]>([]);
-  const [leagues, setLeagues] = useState<LeagueOption[]>([]);
+const cacheKey = (sportKey: string) => `genodds:odds:${sportKey}`;
+
+function readClientCache(sportKey: string): CachedPayload | null {
+  try {
+    const raw = sessionStorage.getItem(cacheKey(sportKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedPayload;
+    if (Date.now() - Date.parse(parsed.fetchedAt) > CLIENT_CACHE_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeClientCache(sportKey: string, payload: CachedPayload) {
+  try {
+    sessionStorage.setItem(cacheKey(sportKey), JSON.stringify(payload));
+  } catch {
+    // Storage may be unavailable; server-side caching still protects quota.
+  }
+}
+
+export function useOddsData(sportKey: string): UseOddsDataReturn {
+  const [odds, setOdds] = useState<BettingOdds[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isLoading, setIsLoading]               = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isMockData, setIsMockData] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const requestId = useRef(0);
 
-  // isMockData is derived from current odds — no extra useState needed
-  const isMockData = isMockOdds(odds);
+  const applyEvents = useCallback((events: TheOddsApiEvent[], fetchedAt: string, id: number) => {
+    if (id !== requestId.current) return;
+    setOdds(transformEvents(events));
+    setIsMockData(false);
+    setLastUpdated(new Date(fetchedAt));
+  }, []);
 
-  const load = useCallback(async (isInitial = false) => {
+  const applyMock = useCallback((selectedSportKey: string, id: number) => {
+    if (id !== requestId.current) return;
+    const matching = MOCK_ODDS.filter((item) => item.leagueId === selectedSportKey);
+    setOdds(matching);
+    setIsMockData(true);
+    setLastUpdated(new Date());
+  }, []);
+
+  const load = useCallback(async (isInitial = false, preferClientCache = true) => {
+    const id = ++requestId.current;
     if (!isInitial) setIsLoading(true);
     setError(null);
 
-    // ── Inline mock-fallback helper (no extra useCallback hook) ──
-    const applyMock = (_reason?: string) => {
-      setOdds(MOCK_ODDS);
-      setSports(MOCK_SPORTS);
-      setLeagues(MOCK_LEAGUES);
-      setLastUpdated(new Date());
-    };
-
-    const isApiKeyError = (msg: string) =>
-      msg.includes("INVALID_KEY") ||
-      msg.includes("401") ||
-      msg.includes("API key") ||
-      msg.includes("All UK sport requests failed");
+    if (preferClientCache) {
+      const cached = readClientCache(sportKey);
+      if (cached) {
+        applyEvents(cached.events, cached.fetchedAt, id);
+        setIsInitialLoading(false);
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
-      const res = await fetch(ODDS_ENDPOINT, {
+      const url = new URL(ODDS_ENDPOINT);
+      url.searchParams.set("sport", sportKey);
+      const response = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${publicAnonKey}`,
-          "Content-Type": "application/json",
+          Accept: "application/json",
         },
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(15_000),
       });
 
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        const msg = json.error || `HTTP ${res.status}`;
-        if (res.status === 401 || res.status === 502 || isApiKeyError(msg)) {
-          applyMock(msg);
-          return;
-        }
-        throw new Error(msg);
-      }
+      const data = await response.json().catch(() => ({})) as {
+        events?: TheOddsApiEvent[];
+        fetchedAt?: string;
+        error?: string;
+      };
 
-      const data = await res.json() as { events?: TheOddsApiEvent[]; error?: string };
+      if (!response.ok) throw new Error(data.error || `HTTP_${response.status}`);
 
-      if (data.error) {
-        if (isApiKeyError(data.error)) {
-          applyMock(data.error);
-          return;
-        }
-        throw new Error(data.error);
-      }
-
-      const rawEvents: TheOddsApiEvent[] = Array.isArray(data.events)
-        ? data.events
-        : [];
-
-      if (rawEvents.length === 0) {
-        applyMock("No events returned from API");
-        return;
-      }
-
-      const bettingOdds = transformEvents(rawEvents);
-      const { sports: s, leagues: l } = buildSportsAndLeagues(bettingOdds);
-
-      setOdds(bettingOdds);
-      setSports(s);
-      setLeagues(l);
-      setLastUpdated(new Date());
-      console.log(
-        `[useOddsData] Loaded ${bettingOdds.length} odds from ${rawEvents.length} real events`
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-
-      if (
-        isApiKeyError(message) ||
-        message.includes("Failed to fetch") ||
-        message.includes("timeout") ||
-        message.includes("AbortError")
-      ) {
-        applyMock(message);
-        return;
-      }
-
-      console.error("[useOddsData] Error fetching odds:", message);
+      const events = Array.isArray(data.events) ? data.events : [];
+      const fetchedAt = data.fetchedAt || new Date().toISOString();
+      writeClientCache(sportKey, { events, fetchedAt });
+      applyEvents(events, fetchedAt, id);
+    } catch (loadError) {
+      if (id !== requestId.current) return;
+      const message = loadError instanceof Error ? loadError.message : String(loadError);
       setError(message);
-      applyMock(message); // still show something useful
+      applyMock(sportKey, id);
     } finally {
-      setIsInitialLoading(false);
-      setIsLoading(false);
+      if (id === requestId.current) {
+        setIsInitialLoading(false);
+        setIsLoading(false);
+      }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [applyEvents, applyMock, sportKey]);
 
-  // Initial load + polling
+  // One request on initial load and one when the user selects another league.
+  // There is intentionally no background polling.
   useEffect(() => {
-    load(true);
-    const interval = setInterval(() => load(false), POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    setIsInitialLoading(true);
+    void load(true, true);
   }, [load]);
 
   const refetch = useCallback(async () => {
-    await load(false);
+    await load(false, false);
   }, [load]);
-
-  const eventCount = new Set(odds.map((o) => o.eventId)).size;
 
   return {
     odds,
-    sports,
-    leagues,
+    sports: CURATED_SPORTS,
+    leagues: CURATED_LEAGUES,
     isLoading,
     isInitialLoading,
     error,
     isMockData,
     lastUpdated,
     refetch,
-    eventCount,
+    eventCount: new Set(odds.map((item) => item.eventId)).size,
   };
 }

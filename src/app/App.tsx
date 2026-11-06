@@ -25,6 +25,11 @@ import { useGeoBlock } from "./hooks/useGeoBlock";
 import type { BettingOdds } from "./types";
 import { Language, useTranslation } from "./translations";
 import { Logo } from "./components/Logo";
+import {
+  DEFAULT_LEAGUE,
+  getDefaultLeagueForSport,
+  getLeagueByLabel,
+} from "./data/sportCatalog";
 
 interface User {
   name: string;
@@ -44,8 +49,8 @@ const ALL_SENTINEL = "Tümü";
 
 export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSport, setSelectedSport] = useState(ALL_SENTINEL);
-  const [selectedLeague, setSelectedLeague] = useState(ALL_SENTINEL);
+  const [selectedSport, setSelectedSport] = useState(DEFAULT_LEAGUE.sportId);
+  const [selectedLeague, setSelectedLeague] = useState(DEFAULT_LEAGUE.key);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false);
@@ -73,8 +78,8 @@ export default function App() {
   const t = useTranslation(language);
 
   // ─── Odds Data Hook ─────────────────────────────────────────
-  // Always fetch the full dataset; filtering happens client-side.
-  // This ensures the FilterBar always shows all sports/leagues.
+  // Exactly one allowlisted competition is requested at a time.
+  const selectedLeagueKey = getLeagueByLabel(selectedLeague).id;
   const {
     odds: allOdds,
     sports: apiSports,
@@ -86,7 +91,7 @@ export default function App() {
     lastUpdated,
     refetch,
     eventCount,
-  } = useOddsData();
+  } = useOddsData(selectedLeagueKey);
 
   // ─── Persistence ─────────────────────────────────────────────
   useEffect(() => {
@@ -118,17 +123,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("language", language);
   }, [language]);
-
-  // Reset league filter when sport changes and league no longer applies
-  useEffect(() => {
-    if (selectedLeague !== ALL_SENTINEL) {
-      const sportFiltered = allOdds.filter(
-        (item) => selectedSport === ALL_SENTINEL || item.sport === selectedSport
-      );
-      const available = new Set(sportFiltered.map((item) => item.league));
-      if (!available.has(selectedLeague)) setSelectedLeague(ALL_SENTINEL);
-    }
-  }, [selectedSport, selectedLeague, allOdds]);
 
   // ─── Auth Handlers (OTP Flow) ─────────────────────────────────
   // The new AuthModal calls onLogin({ email, name }) after OTP verification.
@@ -216,16 +210,14 @@ export default function App() {
   const handleQuickFilter = (category: keyof CategorizedFavorites, item: string) => {
     if (category === "sports") {
       setSelectedSport(item);
-      setSelectedLeague(ALL_SENTINEL);
+      setSelectedLeague(getDefaultLeagueForSport(item).key);
       setSearchQuery("");
     } else if (category === "leagues") {
-      const leagueMatch = allOdds.find((d) => d.league === item);
-      if (leagueMatch) setSelectedSport(leagueMatch.sport);
-      setSelectedLeague(item);
+      const league = getLeagueByLabel(item);
+      setSelectedSport(league.sportId);
+      setSelectedLeague(league.key);
       setSearchQuery("");
     } else {
-      setSelectedSport(ALL_SENTINEL);
-      setSelectedLeague(ALL_SENTINEL);
       setSearchQuery(item);
     }
     toast(
@@ -256,21 +248,13 @@ export default function App() {
 
   // ─── Available Leagues (filtered by selected sport) ───────────
   const availableLeagues = useMemo(() => {
-    if (selectedSport === ALL_SENTINEL) return apiLeagues;
-    // Filter leagues that belong to the selected sport
-    return apiLeagues.filter((l) =>
-      l.sportId === selectedSport ||
-      allOdds.some((o) => o.sport === selectedSport && o.league === l.key)
-    );
-  }, [selectedSport, apiLeagues, allOdds]);
+    return apiLeagues.filter((league) => league.sportId === selectedSport);
+  }, [selectedSport, apiLeagues]);
 
   // ─── Filter & Group Odds ──────────────────────────────────────
   const filteredAndGroupedOdds = useMemo(() => {
     let filtered = allOdds;
-    if (selectedSport !== ALL_SENTINEL)
-      filtered = filtered.filter((item) => item.sport === selectedSport);
-    if (selectedLeague !== ALL_SENTINEL)
-      filtered = filtered.filter((item) => item.league === selectedLeague);
+    filtered = filtered.filter((item) => item.leagueId === selectedLeagueKey);
     if (searchQuery)
       filtered = filtered.filter((item) =>
         item.match.toLowerCase().includes(searchQuery.toLowerCase())
@@ -296,7 +280,7 @@ export default function App() {
       });
     });
     return grouped;
-  }, [searchQuery, selectedSport, selectedLeague, allOdds]);
+  }, [searchQuery, selectedLeagueKey, allOdds]);
 
   const getTeams = (match: string) => match.split(" - ").map((s) => s.trim());
 
@@ -519,7 +503,7 @@ export default function App() {
                     selectedSport={selectedSport}
                     onSportChange={(sport) => {
                       setSelectedSport(sport);
-                      setSelectedLeague(ALL_SENTINEL);
+                      setSelectedLeague(getDefaultLeagueForSport(sport).key);
                     }}
                     selectedLeague={selectedLeague}
                     onLeagueChange={setSelectedLeague}
@@ -553,9 +537,11 @@ export default function App() {
                         </span>
                       )}
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                        isDarkMode ? "bg-green-500/10 text-green-500/60" : "bg-green-100 text-green-600/60"
+                        isMockData
+                          ? isDarkMode ? "bg-amber-500/10 text-amber-400/70" : "bg-amber-100 text-amber-700/70"
+                          : isDarkMode ? "bg-green-500/10 text-green-500/60" : "bg-green-100 text-green-600/60"
                       }`}>
-                        LIVE
+                        {isMockData ? "DEMO" : "LIVE"}
                       </span>
                     </div>
                     <button
